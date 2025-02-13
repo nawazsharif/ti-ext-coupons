@@ -366,6 +366,16 @@ $config['form']['tabs'] = [
                 'delivery_fee'=> 'lang:igniter.coupons::default.text_cart_restriction_delivery_fee',
             ],
         ],
+        'payment_condition' => [
+            'tab' => 'lang:igniter.coupons::default.text_tab_restrictions',
+            'label' => 'Payment Condition',
+            'type' => 'select',
+            'options' => [
+                '' => 'None',
+                'cod' => 'Card Payment',
+                'stripe' => 'Cash Payment',
+            ],
+        ],
         'categories' => [
             'tab' => 'lang:igniter.coupons::default.text_tab_restrictions',
             'label' => 'lang:igniter.coupons::default.label_categories',

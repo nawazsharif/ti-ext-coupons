@@ -7,6 +7,7 @@ use Admin\Traits\Locationable;
 use Carbon\Carbon;
 use Igniter\Flame\Auth\Models\User;
 use Igniter\Flame\Database\Model;
+use Igniter\Local\Facades\Location;
 
 /**
  * Coupons Model Class
@@ -276,7 +277,12 @@ class Coupons_model extends Model
         if (empty($this->order_restriction)) {
             return false;
         }
-
+        $data = Coupons_model::where('status', 1)
+            ->where('order_restriction', json_encode([Location::orderType()]))
+            ->first('order_restriction');
+        if ($data != null) {
+            $this->order_restriction = $data->order_restriction;
+        }
         return !in_array($orderType, $this->order_restriction);
     }
 
@@ -289,6 +295,14 @@ class Coupons_model extends Model
         $locationKeyColumn = $this->locations()->getModel()->qualifyColumn('location_id');
 
         return !$this->locations()->where($locationKeyColumn, $locationId)->exists();
+    }
+
+    public function hasPaymentRestriction()
+    {
+        $data = Coupons_model::where('status', 1)
+            ->where('order_restriction', json_encode([Location::orderType()]))
+            ->first('payment_condition');
+        return $data->payment_condition ?? '';
     }
 
     public function hasReachedMaxRedemption()

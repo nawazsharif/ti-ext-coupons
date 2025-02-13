@@ -10,6 +10,8 @@ use Igniter\Flame\Cart\Facades\Cart;
 use Igniter\Flame\Cart\Helpers\ActsAsItemable;
 use Igniter\Flame\Exception\ApplicationException;
 use Igniter\Local\Facades\Location;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Session;
 use Main\Facades\Auth;
 
 class Coupon extends CartCondition
@@ -39,14 +41,74 @@ class Coupon extends CartCondition
         return 0 - $this->calculatedValue;
     }
 
+    public function getMetaData($key = null, $default = null)
+    {
+        $data = Coupons_model::where('status', 1)
+            ->whereJsonContains('order_restriction', Location::orderType())
+            ->select(['code', 'min_total'])
+            ->orderBy('min_total', 'desc')
+            ->get();
+
+        $data = $data?->toArray();
+        $metaData = [];
+        if ($data) {
+            foreach ($data as $item) {
+                if ($item['min_total'] < Cart::subtotal()) {
+                    $metaData = $item;
+                    break;
+                }
+            }
+        }
+
+        if (empty($metaData)) {
+            $metaData = Session::get($this->getSessionKey(), []);
+        }
+
+        if (is_null($key)) {
+            return $metaData;
+        }
+
+        return Arr::get($metaData, $key, $default);
+    }
+
+    public function setMetaData($key, $value = null)
+    {
+        $data = Coupons_model::where('status', 1)
+            ->where('order_restriction', json_encode([Location::orderType()]))
+            ->select('code')
+            ->first();
+        $data = $data?->toArray();
+        if ($data){
+            $metaData = $data;
+        }
+        else{
+            $metaData = Session::get($this->getSessionKey(), []);
+        }
+        //$metaData = Session::get($this->getSessionKey(), []);
+
+        if (is_array($key)) {
+            foreach ($key as $k => $v) {
+                Arr::set($metaData, $k, $v);
+            }
+        }
+        else {
+            Arr::set($metaData, $key, $value);
+        }
+        Session::put($this->getSessionKey(), $metaData);
+    }
+
     public function getModel()
     {
         if (!strlen($couponCode = $this->getMetaData('code')))
             return null;
 
-        if (is_null(self::$couponModel) || (self::$couponModel && strtolower(self::$couponModel->code) !== strtolower($couponCode)))
-            self::$couponModel = Coupons_model::getByCodeAndLocation($couponCode, Location::getId());
-
+        if (
+            is_null(self::$couponModel) ||
+            (self::$couponModel && strtolower(self::$couponModel->code) !== strtolower($couponCode))){
+            self::$couponModel = Coupons_model::where('status', 1)
+                ->where('order_restriction', json_encode([Location::orderType()]))
+                ->first() ?? Coupons_model::getByCodeAndLocation($couponCode, Location::getId());
+        }
         return self::$couponModel;
     }
 
@@ -85,12 +147,22 @@ class Coupon extends CartCondition
 
     public function beforeApply()
     {
-        $couponModel = $this->getModel();
-        if (!$couponModel || $couponModel->appliesOnMenuItems() || self::$hasErrors)
-            return false;
+        $selectedPaymentMethod = Session::get('selectedPaymentMethod');
 
-        if ($couponModel->appliesOnDelivery() && !Location::orderTypeIsDelivery())
+        $couponModel = $this->getModel();
+        if ($condition = !empty($couponModel->hasPaymentRestriction())){
+            if (!isset($selectedPaymentMethod) || $selectedPaymentMethod !== $condition ) {
+                return false;
+            }
+        }
+
+        if (!$couponModel || $couponModel->appliesOnMenuItems() || self::$hasErrors) {
             return false;
+        }
+
+        if ($couponModel->appliesOnDelivery() && !Location::orderTypeIsDelivery()) {
+            return false;
+        }
     }
 
     public function getActions()
