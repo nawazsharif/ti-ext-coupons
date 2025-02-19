@@ -150,7 +150,7 @@ class Coupon extends CartCondition
         $selectedPaymentMethod = Session::get('selectedPaymentMethod');
 
         $couponModel = $this->getModel();
-        if ($condition = !empty($couponModel->hasPaymentRestriction())){
+        if ($condition = !empty($couponModel?->hasPaymentRestriction())){
             if (!isset($selectedPaymentMethod) || $selectedPaymentMethod !== $condition ) {
                 return false;
             }
